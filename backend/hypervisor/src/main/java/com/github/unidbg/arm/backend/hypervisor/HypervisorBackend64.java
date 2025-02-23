@@ -10,13 +10,7 @@ import com.alibaba.fastjson.util.IOUtils;
 import com.github.unidbg.Emulator;
 import com.github.unidbg.Family;
 import com.github.unidbg.arm.ARMEmulator;
-import com.github.unidbg.arm.backend.BackendException;
-import com.github.unidbg.arm.backend.CodeHook;
-import com.github.unidbg.arm.backend.DebugHook;
-import com.github.unidbg.arm.backend.HypervisorBackend;
-import com.github.unidbg.arm.backend.ReadHook;
-import com.github.unidbg.arm.backend.UnHook;
-import com.github.unidbg.arm.backend.WriteHook;
+import com.github.unidbg.arm.backend.*;
 import com.github.unidbg.debugger.BreakPoint;
 import com.github.unidbg.debugger.BreakPointCallback;
 import com.github.unidbg.pointer.UnidbgPointer;
@@ -416,7 +410,10 @@ public class HypervisorBackend64 extends HypervisorBackend {
         }
         final void onSoftwareStep(long spsr, long address) {
             UnidbgPointer pointer = UnidbgPointer.pointer(emulator, address);
-            assert pointer != null;
+            if (pointer == null) {
+                hypervisor.reg_set_spsr_el1(spsr | Hypervisor.PSTATE$SS);
+                return;
+            }
             int asm = pointer.getInt(0);
             if (isLoadExclusiveCode(asm)) {
                 if (loadExclusiveAddress == address) {

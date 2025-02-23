@@ -45,7 +45,6 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 public class MachOModule extends Module implements com.github.unidbg.ios.MachO {
@@ -111,6 +110,16 @@ public class MachOModule extends Module implements com.github.unidbg.ios.MachO {
             }
         }
         return false;
+    }
+
+    final List<FixupChains.LazyFixup> unbindTargets = new ArrayList<>();
+
+    final void onLoadNewModule(MachOModule module) {
+        boolean containsOrdinal = ordinalList.contains(module.path);
+        if (containsOrdinal) {
+            unbindTargets.removeIf(fixup -> fixup.fixup(emulator));
+        }
+        log.debug("onLoadNewModule: {}, containsOrdinal={}, unbindTargetSize={}", module, containsOrdinal, unbindTargets.size());
     }
 
     @Override
@@ -196,7 +205,7 @@ public class MachOModule extends Module implements com.github.unidbg.ios.MachO {
         this.apple = apple;
         this.vars = vars;
         this.machHeader = machHeader;
-        this.slide = computeSlide(emulator, machHeader);
+        this.slide = machHeader == 0 ? 0 : computeSlide(emulator, machHeader);
         this.executable = executable;
         this.loader = loader;
         this.hookListeners = hookListeners;
@@ -347,7 +356,7 @@ public class MachOModule extends Module implements com.github.unidbg.ios.MachO {
 
     final void doInitialization(Emulator<?> emulator) {
         try {
-            if (initialized) {
+            if (initialized || isVirtual()) {
                 return;
             }
 
@@ -737,6 +746,10 @@ public class MachOModule extends Module implements com.github.unidbg.ios.MachO {
 
     @Override
     public Symbol findClosestSymbolByAddress(long addr, boolean fast) {
+        if (isVirtual()) {
+            return null;
+        }
+
         long targetAddress = addr - base;
         if (targetAddress == 0) {
             return new ExportSymbol("__dso_handle", addr, this, 0, EXPORT_SYMBOL_FLAGS_KIND_ABSOLUTE);
